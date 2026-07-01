@@ -1,0 +1,24 @@
+{
+  "name": "Respiro — un instant pour souffler",
+  "short_name": "Respiro",
+  "description": "Détection précoce du burnout et de la fatigue mentale. Pas une thérapie, un espace pour respirer.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#141C35",
+  "theme_color": "#141C35",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

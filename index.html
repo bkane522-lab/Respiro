@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Respiro — un instant pour souffler</title>
+<meta name="description" content="Détection précoce du burnout et de la fatigue mentale. Pas une thérapie, un espace pour respirer.">
+<meta name="theme-color" content="#141C35">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #141C35;
+    --bg-deep: #0D1326;
+    --panel: #1B2444;
+    --panel-soft: #212C50;
+    --coral: #FF8C69;
+    --peach: #FFD7B5;
+    --sage: #9CB89C;
+    --alert: #D64550;
+    --ink: #F5F1EB;
+    --ink-dim: #B9BFD4;
+    --line: rgba(245,241,235,0.10);
+    --radius: 22px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink); font-family:'Inter',sans-serif; overscroll-behavior-y:none;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(255,140,105,0.10), transparent 60%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+    padding-bottom: 48px;
+  }
+  .wrap{max-width:480px; margin:0 auto; padding:0 20px;}
+  header.top{display:flex; align-items:center; justify-content:space-between; padding:20px 20px 0;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand img{width:28px; height:28px; border-radius:8px;}
+  .brand span{font-family:'Newsreader', serif; font-style:italic; font-size:19px; letter-spacing:0.2px;}
+  .daycount{font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--ink-dim); letter-spacing:0.5px;}
+
+  /* HERO ORB */
+  .hero{ text-align:center; padding:18px 0 6px; }
+  .orb-zone{position:relative; width:240px; height:240px; margin:0 auto;}
+  .ring{
+    position:absolute; inset:0; border-radius:50%;
+    border:1px solid var(--line);
+  }
+  .ring.r2{inset:-22px; opacity:0.7;}
+  .orb{
+    position:absolute; left:50%; top:50%; width:150px; height:150px;
+    transform:translate(-50%,-50%) scale(1);
+    border-radius:50%;
+    background: radial-gradient(circle at 38% 32%, var(--peach), var(--coral) 70%);
+    box-shadow: 0 0 60px rgba(255,140,105,0.35), inset -10px -14px 30px rgba(120,40,20,0.25);
+    animation: breathe 8s ease-in-out infinite;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .orb .orb-label{font-family:'Newsreader',serif; font-style:italic; font-size:14px; color:#3a1c10; opacity:0.75;}
+  @keyframes breathe{
+    0%{ transform:translate(-50%,-50%) scale(0.86); }
+    40%{ transform:translate(-50%,-50%) scale(1.06); }
+    50%{ transform:translate(-50%,-50%) scale(1.06); }
+    90%{ transform:translate(-50%,-50%) scale(0.86); }
+    100%{ transform:translate(-50%,-50%) scale(0.86); }
+  }
+  .orb.active{ animation: breathe-guided 16s ease-in-out infinite; }
+  @keyframes breathe-guided{
+    0%{ transform:translate(-50%,-50%) scale(0.8); }
+    25%{ transform:translate(-50%,-50%) scale(1.15); }
+    50%{ transform:translate(-50%,-50%) scale(1.15); }
+    75%{ transform:translate(-50%,-50%) scale(0.8); }
+    100%{ transform:translate(-50%,-50%) scale(0.8); }
+  }
+  .breath-hint{font-size:12px; color:var(--ink-dim); margin-top:14px;}
+  .breath-phase{font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--coral); margin-top:10px; min-height:16px;}
+
+  h1.tagline{font-family:'Newsreader', serif; font-style:italic; font-weight:400; font-size:21px; line-height:1.35; margin:18px 0 4px; color:var(--ink);}
+  p.sub{color:var(--ink-dim); font-size:13.5px; margin:0 0 22px;}
+
+  /* CRISIS BANNER */
+  .crisis{
+    background: linear-gradient(135deg, #4a1620, #2a0f17);
+    border:1px solid rgba(214,69,80,0.4);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin:0 0 18px;
+    display:none;
+  }
+  .crisis.show{display:block;}
+  .crisis .ctitle{font-weight:600; font-size:14px; color:#ffb3ba; margin-bottom:6px;}
+  .crisis p{font-size:13px; color:#f0d4d6; margin:0 0 10px; line-height:1.5;}
+  .crisis a{color:#ffb3ba; font-weight:600;}
+  .crisis-actions{display:flex; gap:8px; flex-wrap:wrap;}
+  .crisis-actions a, .crisis-actions button{
+    background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18);
+    color:#fff; padding:9px 12px; border-radius:12px; font-size:12.5px; text-decoration:none;
+    font-family:'Inter'; cursor:pointer;
+  }
+
+  /* CARDS */
+  .card{
+    background: var(--panel);
+    border:1px solid var(--line);
+    border-radius: var(--radius);
+    padding:18px;
+    margin-bottom:16px;
+  }
+  .card h2{font-family:'Newsreader', serif; font-style:italic; font-weight:500; font-size:16px; margin:0 0 14px; color:var(--ink);}
+  .card h2 .eyebrow{display:block; font-family:'JetBrains Mono', monospace; font-style:normal; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--coral); margin-bottom:4px;}
+
+  /* CHECK-IN SLIDERS */
+  .qrow{margin-bottom:18px;}
+  .qrow:last-child{margin-bottom:6px;}
+  .qrow .qlabel{display:flex; justify-content:space-between; font-size:13px; color:var(--ink-dim); margin-bottom:8px;}
+  .qrow .qval{font-family:'JetBrains Mono', monospace; color:var(--peach); font-size:12.5px;}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:4px;
+    background: var(--line); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:20px; height:20px; border-radius:50%;
+    background: linear-gradient(135deg, var(--peach), var(--coral));
+    border:2px solid var(--bg); cursor:pointer;
+    box-shadow:0 2px 8px rgba(0,0,0,0.4);
+  }
+  .checkin-btn{
+    width:100%; padding:14px; border:none; border-radius:14px; margin-top:6px;
+    background: linear-gradient(135deg, var(--coral), #e9714f);
+    color:#2a1208; font-weight:700; font-size:14px; cursor:pointer;
+    font-family:'Inter';
+  }
+  .checkin-btn:disabled{opacity:0.5;}
+  .checkin-done{
+    text-align:center; padding:10px 0 2px; color:var(--sage); font-size:13px;
+  }
+
+  /* TREND */
+  .bars{display:flex; align-items:flex-end; gap:5px; height:64px; margin-top:6px;}
+  .bar{flex:1; background:var(--panel-soft); border-radius:5px 5px 2px 2px; position:relative; min-height:4px;}
+  .bar.filled{background:linear-gradient(180deg, var(--peach), var(--coral));}
+  .bars-labels{display:flex; justify-content:space-between; margin-top:6px; font-size:9.5px; color:var(--ink-dim); font-family:'JetBrains Mono', monospace;}
+  .trend-empty{font-size:13px; color:var(--ink-dim); text-align:center; padding:10px 0;}
+
+  /* MICRO ACTION */
+  .action-text{font-size:14.5px; line-height:1.55; color:var(--ink); margin-bottom:14px;}
+  .action-meta{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
+  .pill{font-family:'JetBrains Mono', monospace; font-size:10.5px; background:var(--panel-soft); color:var(--sage); padding:4px 9px; border-radius:20px;}
+  .ghost-btn{
+    background:transparent; border:1px solid var(--line); color:var(--ink-dim);
+    padding:10px 14px; border-radius:12px; font-size:12.5px; cursor:pointer; font-family:'Inter';
+  }
+
+  /* VICTORIES */
+  .victory-input{display:flex; gap:8px; margin-bottom:14px;}
+  .victory-input input{
+    flex:1; background:var(--panel-soft); border:1px solid var(--line); border-radius:12px;
+    padding:11px 13px; color:var(--ink); font-size:13.5px; font-family:'Inter';
+  }
+  .victory-input input::placeholder{color:#6b7290;}
+  .victory-input button{
+    background:var(--sage); border:none; border-radius:12px; padding:0 16px; color:#16261a;
+    font-weight:700; cursor:pointer; font-size:18px;
+  }
+  .victory-list{list-style:none; margin:0; padding:0;}
+  .victory-list li{
+    display:flex; justify-content:space-between; gap:10px;
+    padding:10px 0; border-bottom:1px solid var(--line); font-size:13.5px;
+  }
+  .victory-list li:last-child{border-bottom:none;}
+  .victory-list .vdate{font-family:'JetBrains Mono', monospace; font-size:10.5px; color:var(--ink-dim); white-space:nowrap; padding-top:1px;}
+  .empty-note{color:var(--ink-dim); font-size:13px; text-align:center; padding:6px 0;}
+
+  footer{text-align:center; padding:24px 20px 0; font-size:11px; color:#6b7290; line-height:1.6;}
+  footer a{color:var(--ink-dim);}
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:var(--panel-soft); border:1px solid var(--line); color:var(--ink);
+    padding:11px 18px; border-radius:14px; font-size:13px; opacity:0; pointer-events:none;
+    transition: all 0.3s ease; z-index:50; max-width:90vw; text-align:center;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <img src="icons/icon-192.png" alt="Respiro">
+    <span>Respiro</span>
+  </div>
+  <div class="daycount" id="streakLabel">jour 1</div>
+</header>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="orb-zone">
+      <div class="ring r2"></div>
+      <div class="ring"></div>
+      <div class="orb" id="orb"><span class="orb-label">respire</span></div>
+    </div>
+    <div class="breath-phase" id="breathPhase"></div>
+    <div class="breath-hint" id="breathHint">touche l'orbe pour une respiration guidée de 60 secondes</div>
+  </div>
+
+  <h1 class="tagline" id="tagline">Comment tu te sens, là, maintenant ?</h1>
+  <p class="sub">Pas une thérapie. Un espace pour repérer les signaux avant qu'ils ne s'accumulent.</p>
+
+  <div class="crisis" id="crisisBanner">
+    <div class="ctitle">On dirait que c'est lourd en ce moment</div>
+    <p>Si tu as des pensées difficiles à porter, parler à quelqu'un peut vraiment aider. Ce n'est pas une faiblesse de demander.</p>
+    <div class="crisis-actions">
+      <a href="tel:3114">📞 Appeler le 3114 (gratuit, 24/7)</a>
+      <a href="https://www.3114.fr" target="_blank" rel="noopener">3114.fr</a>
+      <button onclick="dismissCrisis()">Je note, merci</button>
+    </div>
+  </div>
+
+  <div class="card" id="checkinCard">
+    <h2><span class="eyebrow">check-in du jour</span>30 secondes, c'est tout</h2>
+    <div class="qrow">
+      <div class="qlabel"><span>Énergie</span><span class="qval" id="val-energie">5</span></div>
+      <input type="range" min="0" max="10" value="5" id="r-energie">
+    </div>
+    <div class="qrow">
+      <div class="qlabel"><span>Qualité du sommeil</span><span class="qval" id="val-sommeil">5</span></div>
+      <input type="range" min="0" max="10" value="5" id="r-sommeil">
+    </div>
+    <div class="qrow">
+      <div class="qlabel"><span>Charge mentale</span><span class="qval" id="val-charge">5</span></div>
+      <input type="range" min="0" max="10" value="5" id="r-charge">
+    </div>
+    <div class="qrow">
+      <div class="qlabel"><span>Humeur générale</span><span class="qval" id="val-humeur">5</span></div>
+      <input type="range" min="0" max="10" value="5" id="r-humeur">
+    </div>
+    <button class="checkin-btn" id="checkinBtn" onclick="submitCheckin()">Valider mon check-in</button>
+  </div>
+
+  <div class="card" id="trendCard">
+    <h2><span class="eyebrow">tendance</span>14 derniers jours</h2>
+    <div id="trendZone"><div class="trend-empty">Reviens demain pour voir ta première tendance se dessiner.</div></div>
+  </div>
+
+  <div class="card" id="actionCard" style="display:none;">
+    <h2><span class="eyebrow">pour aujourd'hui</span>Une petite action</h2>
+    <div class="action-text" id="actionText">…</div>
+    <div class="action-meta"><span class="pill" id="actionDuration">2 min</span></div>
+    <button class="ghost-btn" onclick="generateAction(true)">Une autre suggestion</button>
+  </div>
+
+  <div class="card">
+    <h2><span class="eyebrow">petites victoires</span>Ce qui a marché aujourd'hui</h2>
+    <div class="victory-input">
+      <input type="text" id="victoryInput" placeholder="Ex : je suis sorti(e) marcher 10 min" maxlength="140">
+      <button onclick="addVictory()">+</button>
+    </div>
+    <ul class="victory-list" id="victoryList"></ul>
+  </div>
+
+  <footer>
+    Respiro ne remplace pas un avis médical ou psychologique.<br>
+    En cas d'urgence, appelle le <a href="tel:3114">3114</a> ou le 15.
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- CONFIG ---------- */
+const GROQ_ENDPOINT = "/api/coach"; // Vercel serverless function, see /api/coach.js
+const STORAGE_KEY = "respiro_checkins_v1";
+const VICTORY_KEY = "respiro_victories_v1";
+
+/* ---------- UTIL ---------- */
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+function loadCheckins(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ return []; } }
+function saveCheckins(arr){ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
+function loadVictories(){ try{ return JSON.parse(localStorage.getItem(VICTORY_KEY)) || []; }catch(e){ return []; } }
+function saveVictories(arr){ localStorage.setItem(VICTORY_KEY, JSON.stringify(arr)); }
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2400);
+}
+
+/* ---------- ORB / BREATHING ---------- */
+const orb = document.getElementById('orb');
+const breathPhase = document.getElementById('breathPhase');
+const breathHint = document.getElementById('breathHint');
+let breathing = false;
+
+orb.addEventListener('click', () => {
+  if(breathing) return;
+  breathing = true;
+  orb.classList.add('active');
+  breathHint.style.display = 'none';
+  const phases = [
+    {label:"Inspire…", dur:4000},
+    {label:"Retiens…", dur:4000},
+    {label:"Expire…", dur:4000},
+    {label:"Retiens…", dur:4000},
+  ];
+  let cycle = 0;
+  const totalCycles = 4; // ~64s
+  function runPhase(i){
+    if(cycle >= totalCycles){
+      breathing = false;
+      orb.classList.remove('active');
+      breathPhase.textContent = '';
+      breathHint.style.display = 'block';
+      breathHint.textContent = "bien joué — touche encore l'orbe quand tu veux";
+      return;
+    }
+    breathPhase.textContent = phases[i].label;
+    setTimeout(()=>{
+      if(i+1 < phases.length){ runPhase(i+1); }
+      else { cycle++; runPhase(0); }
+    }, phases[i].dur);
+  }
+  runPhase(0);
+});
+
+/* ---------- CHECK-IN SLIDERS ---------- */
+['energie','sommeil','charge','humeur'].forEach(key=>{
+  const r = document.getElementById('r-'+key);
+  const v = document.getElementById('val-'+key);
+  r.addEventListener('input', ()=> v.textContent = r.value);
+});
+
+function alreadyCheckedToday(){
+  const data = loadCheckins();
+  return data.find(d => d.date === todayStr());
+}
+
+function refreshCheckinUI(){
+  const existing = alreadyCheckedToday();
+  const card = document.getElementById('checkinCard');
+  if(existing){
+    card.innerHTML = `
+      <h2><span class="eyebrow">check-in du jour</span>déjà fait, merci</h2>
+      <div class="checkin-done">À demain pour le prochain 🌙</div>
+    `;
+  }
+  const data = loadCheckins();
+  const streak = data.length;
+  document.getElementById('streakLabel').textContent = streak <= 1 ? 'jour 1' : 'jour ' + streak;
+}
+
+function submitCheckin(){
+  const entry = {
+    date: todayStr(),
+    energie: +document.getElementById('r-energie').value,
+    sommeil: +document.getElementById('r-sommeil').value,
+    charge: +document.getElementById('r-charge').value, // charge mentale: plus haut = plus chargé
+    humeur: +document.getElementById('r-humeur').value,
+  };
+  const data = loadCheckins();
+  const filtered = data.filter(d => d.date !== entry.date);
+  filtered.push(entry);
+  filtered.sort((a,b)=> a.date.localeCompare(b.date));
+  saveCheckins(filtered);
+
+  checkCrisis(entry, filtered);
+  renderTrend(filtered);
+  generateAction(false, entry);
+  refreshCheckinUI();
+  showToast("Check-in enregistré");
+}
+
+/* ---------- CRISIS DETECTION ---------- */
+function checkCrisis(entry, history){
+  // score composite: bas = préoccupant. energie/sommeil/humeur bas + charge haute
+  const composite = (entry.energie + entry.sommeil + entry.humeur + (10 - entry.charge)) / 4;
+  const last3 = history.slice(-3);
+  const avgLast3 = last3.length === 3
+    ? last3.reduce((s,d)=> s + (d.energie+d.sommeil+d.humeur+(10-d.charge))/4, 0) / 3
+    : null;
+
+  const banner = document.getElementById('crisisBanner');
+  const severe = composite <= 2.5 || (avgLast3 !== null && avgLast3 <= 3);
+  if(severe){
+    banner.classList.add('show');
+  }
+}
+function dismissCrisis(){
+  document.getElementById('crisisBanner').classList.remove('show');
+}
+
+/* ---------- TREND ---------- */
+function renderTrend(history){
+  const zone = document.getElementById('trendZone');
+  const last14 = history.slice(-14);
+  if(last14.length < 2){
+    zone.innerHTML = '<div class="trend-empty">Reviens demain pour voir ta première tendance se dessiner.</div>';
+    return;
+  }
+  const bars = last14.map(d=>{
+    const composite = (d.energie + d.sommeil + d.humeur + (10-d.charge)) / 4; // 0-10
+    const pct = Math.max(6, Math.round((composite/10)*64));
+    return `<div class="bar filled" style="height:${pct}px;" title="${d.date}: ${composite.toFixed(1)}/10"></div>`;
+  }).join('');
+  const labels = `<span>${last14[0].date.slice(5)}</span><span>${last14[last14.length-1].date.slice(5)}</span>`;
+  zone.innerHTML = `<div class="bars">${bars}</div><div class="bars-labels">${labels}</div>`;
+}
+
+/* ---------- MICRO-ACTIONS ---------- */
+const FALLBACK_ACTIONS = {
+  low_energy: [
+    {text:"Lève-toi, ouvre une fenêtre, et prends 5 respirations profondes face à l'air frais.", duration:"2 min"},
+    {text:"Bois un grand verre d'eau, lentement, sans rien faire d'autre en même temps.", duration:"1 min"},
+  ],
+  low_sleep: [
+    {text:"Ce soir, pose ton téléphone 20 minutes avant de dormir. Juste ce soir.", duration:"ce soir"},
+    {text:"Fais une sieste de 15-20 min max si tu peux, avant 16h.", duration:"15 min"},
+  ],
+  high_charge: [
+    {text:"Écris sur un papier les 3 choses qui pèsent le plus là, puis ferme le papier. Tu n'as pas à les résoudre maintenant.", duration:"3 min"},
+    {text:"Choisis une seule tâche en attente et dis-toi : le reste attendra demain.", duration:"1 min"},
+  ],
+  low_mood: [
+    {text:"Envoie un message à une personne avec qui tu te sens bien, même juste 'je pense à toi'.", duration:"2 min"},
+    {text:"Sors marcher 10 minutes, sans objectif, sans écouteurs si possible.", duration:"10 min"},
+  ],
+  good: [
+    {text:"Tout va plutôt bien aujourd'hui. Note ce qui a contribué à cet équilibre, ça t'aidera plus tard.", duration:"2 min"},
+    {text:"Profite de cette énergie pour faire une chose que tu repousses depuis un moment, en petit format.", duration:"5 min"},
+  ]
+};
+
+function pickFallback(entry){
+  if(!entry) return FALLBACK_ACTIONS.good[0];
+  if(entry.energie <= 3) return rand(FALLBACK_ACTIONS.low_energy);
+  if(entry.sommeil <= 3) return rand(FALLBACK_ACTIONS.low_sleep);
+  if(entry.charge >= 8) return rand(FALLBACK_ACTIONS.high_charge);
+  if(entry.humeur <= 3) return rand(FALLBACK_ACTIONS.low_mood);
+  return rand(FALLBACK_ACTIONS.good);
+}
+function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+async function generateAction(forceNew, entryArg){
+  const card = document.getElementById('actionCard');
+  const textEl = document.getElementById('actionText');
+  const durEl = document.getElementById('actionDuration');
+  const entry = entryArg || alreadyCheckedToday();
+  card.style.display = 'block';
+  textEl.textContent = "…";
+
+  // Try Groq via serverless function; fallback to local list if unavailable
+  try{
+    const res = await fetch(GROQ_ENDPOINT, {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ entry, forceNew })
+    });
+    if(!res.ok) throw new Error("api error");
+    const data = await res.json();
+    if(data && data.text){
+      textEl.textContent = data.text;
+      durEl.textContent = data.duration || "2 min";
+      return;
+    }
+    throw new Error("empty");
+  }catch(e){
+    const fb = pickFallback(entry);
+    textEl.textContent = fb.text;
+    durEl.textContent = fb.duration;
+  }
+}
+
+/* ---------- VICTORIES ---------- */
+function renderVictories(){
+  const list = loadVictories();
+  const ul = document.getElementById('victoryList');
+  if(list.length === 0){
+    ul.innerHTML = '<div class="empty-note">Rien pour l\\'instant. Même une petite chose compte.</div>';
+    return;
+  }
+  ul.innerHTML = list.slice().reverse().slice(0,8).map(v=>
+    `<li><span>${escapeHtml(v.text)}</span><span class="vdate">${v.date.slice(5)}</span></li>`
+  ).join('');
+}
+function addVictory(){
+  const input = document.getElementById('victoryInput');
+  const text = input.value.trim();
+  if(!text) return;
+  const list = loadVictories();
+  list.push({date: todayStr(), text});
+  saveVictories(list);
+  input.value = '';
+  renderVictories();
+  showToast("Ajouté à tes victoires");
+}
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ---------- INIT ---------- */
+(function init(){
+  const data = loadCheckins();
+  refreshCheckinUI();
+  renderTrend(data);
+  renderVictories();
+  const existing = alreadyCheckedToday();
+  if(existing){
+    checkCrisis(existing, data);
+    generateAction(false, existing);
+  }
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
