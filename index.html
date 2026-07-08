@@ -16,7 +16,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/public/paywall.css">
+<link rel="stylesheet" href="/assets/paywall.css">
 <style>
   :root{
     --bg: #141C35;
@@ -752,7 +752,7 @@ function exportSummary(){
     `Ce document est généré par l'application Respiro à titre indicatif. Il ne constitue pas un diagnostic médical.`,
   ];
 
-  const blob = new Blob([lines.join('\\n')], { type: 'text/plain' });
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -782,6 +782,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-<script src="/public/paywall.js"></script>
+<script src="/assets/paywall.js"></script>
 </body>
 </html>
