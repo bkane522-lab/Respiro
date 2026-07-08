@@ -16,6 +16,7 @@
 <link rel="icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/public/paywall.css">
 <style>
   :root{
     --bg: #141C35;
@@ -155,6 +156,7 @@
   .action-text{font-size:14.5px; line-height:1.55; color:var(--ink); margin-bottom:14px;}
   .action-meta{display:flex; align-items:center; gap:8px; margin-bottom:14px;}
   .pill{font-family:'JetBrains Mono', monospace; font-size:10.5px; background:var(--panel-soft); color:var(--sage); padding:4px 9px; border-radius:20px;}
+  .pill.premium{color:var(--peach);}
   .ghost-btn{
     background:transparent; border:1px solid var(--line); color:var(--ink-dim);
     padding:10px 14px; border-radius:12px; font-size:12.5px; cursor:pointer; font-family:'Inter';
@@ -231,6 +233,11 @@
   }
   .weekly-text{font-size:14px; line-height:1.6; color:var(--ink); font-style:italic; font-family:'Newsreader', serif;}
   .weekly-loading{color:var(--ink-dim); font-size:13px;}
+  .weekly-locked{font-size:13px; color:var(--ink-dim); line-height:1.6;}
+  .weekly-locked button{
+    margin-top:10px; background:linear-gradient(135deg, var(--coral), #e9714f); border:none;
+    color:#2a1208; font-weight:700; padding:10px 16px; border-radius:12px; cursor:pointer; font-family:'Inter'; font-size:13px;
+  }
 
   /* EXPORT */
   .export-row{display:flex; gap:8px; flex-wrap:wrap;}
@@ -331,7 +338,7 @@
     <h2><span class="eyebrow">pour aujourd'hui</span>Une petite action</h2>
     <div class="action-text" id="actionText">…</div>
     <div class="action-meta"><span class="pill" id="actionDuration">2 min</span></div>
-    <button class="ghost-btn" onclick="generateAction(true)">Une autre suggestion</button>
+    <button class="ghost-btn" id="regenBtn" onclick="generateAction(true)">Une autre suggestion</button>
   </div>
 
   <div class="card">
@@ -343,7 +350,7 @@
     <ul class="victory-list" id="victoryList"></ul>
   </div>
 
-  <div class="weekly-card" id="weeklyCard" style="display:none;">
+  <div class="weekly-card" id="weeklyCard">
     <h2 style="font-family:'Newsreader',serif; font-style:italic; font-weight:500; font-size:16px; margin:0 0 12px;"><span class="eyebrow" style="display:block; font-family:'JetBrains Mono',monospace; font-style:normal; font-size:10px; letter-spacing:1.5px; text-transform:uppercase; color:var(--coral); margin-bottom:4px;">bilan de la semaine</span>Ce que tes 7 derniers jours racontent</h2>
     <div class="weekly-text" id="weeklyText">…</div>
   </div>
@@ -376,6 +383,9 @@
 const GROQ_ENDPOINT = "/api/coach"; // Vercel serverless function, see /api/coach.js
 const STORAGE_KEY = "respiro_checkins_v1";
 const VICTORY_KEY = "respiro_victories_v1";
+const CONTACT_KEY = "respiro_contact_v1";
+const REGEN_KEY = "respiro_regen_v1"; // { date: 'YYYY-MM-DD', count: n }
+const FREE_REGEN_LIMIT = 1; // nombre de "autre suggestion" gratuites par jour
 
 /* ---------- UTIL ---------- */
 function todayStr(){ return new Date().toISOString().slice(0,10); }
@@ -383,6 +393,8 @@ function loadCheckins(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY
 function saveCheckins(arr){ localStorage.setItem(STORAGE_KEY, JSON.stringify(arr)); }
 function loadVictories(){ try{ return JSON.parse(localStorage.getItem(VICTORY_KEY)) || []; }catch(e){ return []; } }
 function saveVictories(arr){ localStorage.setItem(VICTORY_KEY, JSON.stringify(arr)); }
+function loadContact(){ try{ return JSON.parse(localStorage.getItem(CONTACT_KEY)) || null; }catch(e){ return null; } }
+function saveContact(obj){ localStorage.setItem(CONTACT_KEY, JSON.stringify(obj)); }
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -418,189 +430,14 @@ orb.addEventListener('click', () => {
       return;
     }
     breathPhase.textContent = phases[i].label;
-    setTimeout(()=>{
-      if(i+1 < phases.length){ runPhase(i+1); }
-      else { cycle++; runPhase(0); }
+    setTimeout(() => {
+      const next = (i + 1) % phases.length;
+      if(next === 0) cycle++;
+      runPhase(next);
     }, phases[i].dur);
   }
   runPhase(0);
 });
-
-/* ---------- CHECK-IN SLIDERS ---------- */
-['energie','sommeil','charge','humeur'].forEach(key=>{
-  const r = document.getElementById('r-'+key);
-  const v = document.getElementById('val-'+key);
-  r.addEventListener('input', ()=> v.textContent = r.value);
-});
-
-function alreadyCheckedToday(){
-  const data = loadCheckins();
-  return data.find(d => d.date === todayStr());
-}
-
-function refreshCheckinUI(){
-  const existing = alreadyCheckedToday();
-  const card = document.getElementById('checkinCard');
-  if(existing){
-    card.innerHTML = `
-      <h2><span class="eyebrow">check-in du jour</span>déjà fait, merci</h2>
-      <div class="checkin-done">À demain pour le prochain 🌙</div>
-    `;
-  }
-  const data = loadCheckins();
-  const streak = data.length;
-  document.getElementById('streakLabel').textContent = streak <= 1 ? 'jour 1' : 'jour ' + streak;
-}
-
-function submitCheckin(){
-  const entry = {
-    date: todayStr(),
-    energie: +document.getElementById('r-energie').value,
-    sommeil: +document.getElementById('r-sommeil').value,
-    charge: +document.getElementById('r-charge').value, // charge mentale: plus haut = plus chargé
-    humeur: +document.getElementById('r-humeur').value,
-  };
-  const data = loadCheckins();
-  const filtered = data.filter(d => d.date !== entry.date);
-  filtered.push(entry);
-  filtered.sort((a,b)=> a.date.localeCompare(b.date));
-  saveCheckins(filtered);
-
-  checkCrisis(entry, filtered);
-  renderTrend(filtered);
-  generateAction(false, entry);
-  refreshCheckinUI();
-  maybeRenderWeekly(filtered);
-  showToast("Check-in enregistré");
-}
-
-/* ---------- CRISIS DETECTION ---------- */
-function checkCrisis(entry, history){
-  // score composite: bas = préoccupant. energie/sommeil/humeur bas + charge haute
-  const composite = (entry.energie + entry.sommeil + entry.humeur + (10 - entry.charge)) / 4;
-  const last3 = history.slice(-3);
-  const avgLast3 = last3.length === 3
-    ? last3.reduce((s,d)=> s + (d.energie+d.sommeil+d.humeur+(10-d.charge))/4, 0) / 3
-    : null;
-
-  const banner = document.getElementById('crisisBanner');
-  const severe = composite <= 2.5 || (avgLast3 !== null && avgLast3 <= 3);
-  if(severe){
-    renderCrisisActions();
-    banner.classList.add('show');
-  }
-}
-function dismissCrisis(){
-  document.getElementById('crisisBanner').classList.remove('show');
-}
-
-/* ---------- TREND ---------- */
-function renderTrend(history){
-  const zone = document.getElementById('trendZone');
-  const last14 = history.slice(-14);
-  if(last14.length < 2){
-    zone.innerHTML = '<div class="trend-empty">Reviens demain pour voir ta première tendance se dessiner.</div>';
-    return;
-  }
-  const bars = last14.map(d=>{
-    const composite = (d.energie + d.sommeil + d.humeur + (10-d.charge)) / 4; // 0-10
-    const pct = Math.max(6, Math.round((composite/10)*64));
-    return `<div class="bar filled" style="height:${pct}px;" title="${d.date}: ${composite.toFixed(1)}/10"></div>`;
-  }).join('');
-  const labels = `<span>${last14[0].date.slice(5)}</span><span>${last14[last14.length-1].date.slice(5)}</span>`;
-  zone.innerHTML = `<div class="bars">${bars}</div><div class="bars-labels">${labels}</div>`;
-}
-
-/* ---------- MICRO-ACTIONS ---------- */
-const FALLBACK_ACTIONS = {
-  low_energy: [
-    {text:"Lève-toi, ouvre une fenêtre, et prends 5 respirations profondes face à l'air frais.", duration:"2 min"},
-    {text:"Bois un grand verre d'eau, lentement, sans rien faire d'autre en même temps.", duration:"1 min"},
-  ],
-  low_sleep: [
-    {text:"Ce soir, pose ton téléphone 20 minutes avant de dormir. Juste ce soir.", duration:"ce soir"},
-    {text:"Fais une sieste de 15-20 min max si tu peux, avant 16h.", duration:"15 min"},
-  ],
-  high_charge: [
-    {text:"Écris sur un papier les 3 choses qui pèsent le plus là, puis ferme le papier. Tu n'as pas à les résoudre maintenant.", duration:"3 min"},
-    {text:"Choisis une seule tâche en attente et dis-toi : le reste attendra demain.", duration:"1 min"},
-  ],
-  low_mood: [
-    {text:"Envoie un message à une personne avec qui tu te sens bien, même juste 'je pense à toi'.", duration:"2 min"},
-    {text:"Sors marcher 10 minutes, sans objectif, sans écouteurs si possible.", duration:"10 min"},
-  ],
-  good: [
-    {text:"Tout va plutôt bien aujourd'hui. Note ce qui a contribué à cet équilibre, ça t'aidera plus tard.", duration:"2 min"},
-    {text:"Profite de cette énergie pour faire une chose que tu repousses depuis un moment, en petit format.", duration:"5 min"},
-  ]
-};
-
-function pickFallback(entry){
-  if(!entry) return FALLBACK_ACTIONS.good[0];
-  if(entry.energie <= 3) return rand(FALLBACK_ACTIONS.low_energy);
-  if(entry.sommeil <= 3) return rand(FALLBACK_ACTIONS.low_sleep);
-  if(entry.charge >= 8) return rand(FALLBACK_ACTIONS.high_charge);
-  if(entry.humeur <= 3) return rand(FALLBACK_ACTIONS.low_mood);
-  return rand(FALLBACK_ACTIONS.good);
-}
-function rand(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-
-async function generateAction(forceNew, entryArg){
-  const card = document.getElementById('actionCard');
-  const textEl = document.getElementById('actionText');
-  const durEl = document.getElementById('actionDuration');
-  const entry = entryArg || alreadyCheckedToday();
-  card.style.display = 'block';
-  textEl.textContent = "…";
-
-  // Try Groq via serverless function; fallback to local list if unavailable
-  try{
-    const res = await fetch(GROQ_ENDPOINT, {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ entry, forceNew })
-    });
-    if(!res.ok) throw new Error("api error");
-    const data = await res.json();
-    if(data && data.text){
-      textEl.textContent = data.text;
-      durEl.textContent = data.duration || "2 min";
-      return;
-    }
-    throw new Error("empty");
-  }catch(e){
-    const fb = pickFallback(entry);
-    textEl.textContent = fb.text;
-    durEl.textContent = fb.duration;
-  }
-}
-
-/* ---------- VICTORIES ---------- */
-function renderVictories(){
-  const list = loadVictories();
-  const ul = document.getElementById('victoryList');
-  if(list.length === 0){
-    ul.innerHTML = '<div class="empty-note">Rien pour l\'instant. Même une petite chose compte.</div>';
-    return;
-  }
-  ul.innerHTML = list.slice().reverse().slice(0,8).map(v=>
-    `<li><span>${escapeHtml(v.text)}</span><span class="vdate">${v.date.slice(5)}</span></li>`
-  ).join('');
-}
-function addVictory(){
-  const input = document.getElementById('victoryInput');
-  const text = input.value.trim();
-  if(!text) return;
-  const list = loadVictories();
-  list.push({date: todayStr(), text});
-  saveVictories(list);
-  input.value = '';
-  renderVictories();
-  showToast("Ajouté à tes victoires");
-}
-function escapeHtml(s){
-  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-}
 
 /* ---------- SOS TOGGLE ---------- */
 function toggleSos(){
@@ -610,164 +447,341 @@ function toggleSos(){
   toggle.classList.toggle('open');
 }
 
-/* ---------- TRUSTED CONTACT ---------- */
-const CONTACT_KEY = "respiro_contact_v1";
-function loadContact(){ try{ return JSON.parse(localStorage.getItem(CONTACT_KEY)); }catch(e){ return null; } }
-function saveContact(c){ localStorage.setItem(CONTACT_KEY, JSON.stringify(c)); }
-function clearContact(){ localStorage.removeItem(CONTACT_KEY); renderContact(); }
-
-function renderContact(){
-  const zone = document.getElementById('contactZone');
-  const c = loadContact();
-  if(!c){
-    zone.innerHTML = `
-      <div class="contact-form">
-        <input type="text" id="cName" placeholder="Prénom (ex : Sarah)" maxlength="40">
-        <input type="tel" id="cPhone" placeholder="Numéro de téléphone" maxlength="20">
-        <button class="contact-save" onclick="submitContact()">Enregistrer ce contact</button>
-      </div>`;
-  } else {
-    zone.innerHTML = `
-      <div class="contact-summary">
-        <span><span class="cname">${escapeHtml(c.name)}</span> · <span class="cphone">${escapeHtml(c.phone)}</span></span>
-        <button class="contact-edit" onclick="clearContact()">Modifier</button>
-      </div>`;
+/* ---------- CRISIS BANNER ---------- */
+function dismissCrisis(){
+  document.getElementById('crisisBanner').classList.remove('show');
+}
+function evaluateCrisis(entry){
+  // Signal simple : énergie et humeur très basses
+  if(entry.humeur <= 2 && entry.energie <= 2){
+    document.getElementById('crisisBanner').classList.add('show');
   }
 }
-function submitContact(){
-  const name = document.getElementById('cName').value.trim();
-  const phone = document.getElementById('cPhone').value.trim();
-  if(!name || !phone){ showToast("Renseigne un prénom et un numéro"); return; }
-  saveContact({name, phone});
-  renderContact();
-  showToast("Contact enregistré");
+
+/* ---------- CHECK-IN ---------- */
+['energie','sommeil','charge','humeur'].forEach(key => {
+  const slider = document.getElementById('r-' + key);
+  const label = document.getElementById('val-' + key);
+  slider.addEventListener('input', () => { label.textContent = slider.value; });
+});
+
+function submitCheckin(){
+  const entry = {
+    date: todayStr(),
+    energie: Number(document.getElementById('r-energie').value),
+    sommeil: Number(document.getElementById('r-sommeil').value),
+    charge: Number(document.getElementById('r-charge').value),
+    humeur: Number(document.getElementById('r-humeur').value),
+  };
+
+  const checkins = loadCheckins().filter(c => c.date !== entry.date);
+  checkins.push(entry);
+  checkins.sort((a,b) => a.date.localeCompare(b.date));
+  saveCheckins(checkins);
+
+  const btn = document.getElementById('checkinBtn');
+  btn.disabled = true;
+  btn.textContent = "Check-in enregistré ✓";
+
+  evaluateCrisis(entry);
+  renderTrend();
+  updateStreak();
+  generateAction(false);
+  maybeRenderWeekly();
+
+  showToast("Merci d'avoir pris ce moment pour toi.");
 }
 
-function renderCrisisActions(){
-  const c = loadContact();
-  const zone = document.getElementById('crisisActions');
-  let extra = "";
-  if(c){
-    const msg = encodeURIComponent(`Salut ${c.name}, j'ai pas le moral en ce moment, tu peux m'appeler ?`);
-    extra = `<a href="sms:${c.phone}?body=${msg}">💬 Prévenir ${escapeHtml(c.name)}</a>`;
-  }
-  zone.innerHTML = `
-    <a href="tel:3114">📞 Appeler le 3114 (gratuit, 24/7)</a>
-    ${extra}
-    <a href="https://www.3114.fr" target="_blank" rel="noopener">3114.fr</a>
-    <button onclick="dismissCrisis()">Je note, merci</button>
-  `;
-}
+/* ---------- TREND (14 jours) ---------- */
+function renderTrend(){
+  const checkins = loadCheckins();
+  const zone = document.getElementById('trendZone');
 
-/* ---------- WEEKLY BILAN ---------- */
-const WEEKLY_KEY = "respiro_weekly_v1";
-function isoWeekKey(dateStr){
-  const d = new Date(dateStr);
-  const onejan = new Date(d.getFullYear(),0,1);
-  const week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay()+1)/7);
-  return `${d.getFullYear()}-W${week}`;
-}
-async function maybeRenderWeekly(history){
-  if(history.length < 7) return;
-  const last7 = history.slice(-7);
-  const weekKey = isoWeekKey(last7[last7.length-1].date);
-  const stored = JSON.parse(localStorage.getItem(WEEKLY_KEY) || "null");
-  const card = document.getElementById('weeklyCard');
-  const textEl = document.getElementById('weeklyText');
-
-  if(stored && stored.weekKey === weekKey){
-    card.style.display = 'block';
-    textEl.textContent = stored.text;
+  if(checkins.length === 0){
+    zone.innerHTML = '<div class="trend-empty">Reviens demain pour voir ta première tendance se dessiner.</div>';
     return;
   }
 
-  card.style.display = 'block';
-  textEl.innerHTML = '<span class="weekly-loading">Analyse en cours…</span>';
+  const last14 = checkins.slice(-14);
+  const bars = last14.map(c => {
+    const score = Math.round((c.energie + c.sommeil + (10 - c.charge) + c.humeur) / 4 * 10); // /100
+    return { date: c.date, score };
+  });
 
-  const avg = (key, transform) => (last7.reduce((s,d)=> s + (transform?transform(d[key]):d[key]), 0) / last7.length).toFixed(1);
-  const stats = {
-    energie: avg('energie'), sommeil: avg('sommeil'), charge: avg('charge'), humeur: avg('humeur')
-  };
+  let barsHtml = '<div class="bars">';
+  bars.forEach(b => {
+    const filled = b.score >= 50 ? 'filled' : '';
+    barsHtml += `<div class="bar ${filled}" style="height:${Math.max(6, b.score)}%;" title="${b.date} — ${b.score}/100"></div>`;
+  });
+  barsHtml += '</div>';
 
+  const firstLabel = bars[0].date.slice(5);
+  const lastLabel = bars[bars.length - 1].date.slice(5);
+  barsHtml += `<div class="bars-labels"><span>${firstLabel}</span><span>${lastLabel}</span></div>`;
+
+  zone.innerHTML = barsHtml;
+}
+
+/* ---------- STREAK ---------- */
+function updateStreak(){
+  const checkins = loadCheckins();
+  let streak = 0;
+  let cursor = new Date();
+
+  for(let i=0; i<365; i++){
+    const dStr = cursor.toISOString().slice(0,10);
+    if(checkins.find(c => c.date === dStr)){
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  document.getElementById('streakLabel').textContent = streak <= 1 ? 'jour 1' : `jour ${streak}`;
+}
+
+/* ---------- MICRO ACTION (IA via /api/coach) ---------- */
+function getRegenState(){
   try{
-    const res = await fetch(GROQ_ENDPOINT, {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({ mode:"weekly", stats, days: last7 })
-    });
-    if(!res.ok) throw new Error();
-    const data = await res.json();
-    if(data && data.text){
-      textEl.textContent = data.text;
-      localStorage.setItem(WEEKLY_KEY, JSON.stringify({weekKey, text:data.text}));
+    const state = JSON.parse(localStorage.getItem(REGEN_KEY));
+    if(state && state.date === todayStr()) return state;
+  }catch(e){}
+  return { date: todayStr(), count: 0 };
+}
+function saveRegenState(state){ localStorage.setItem(REGEN_KEY, JSON.stringify(state)); }
+
+async function generateAction(isManualRegen){
+  const card = document.getElementById('actionCard');
+  const textEl = document.getElementById('actionText');
+  const regenBtn = document.getElementById('regenBtn');
+
+  if(isManualRegen){
+    const isPremium = window.RespiroPaywall ? await window.RespiroPaywall.isPremium() : false;
+    const state = getRegenState();
+
+    if(!isPremium && state.count >= FREE_REGEN_LIMIT){
+      window.RespiroPaywall && window.RespiroPaywall.open();
       return;
     }
-    throw new Error();
-  }catch(e){
-    const fb = localWeeklyFallback(stats);
-    textEl.textContent = fb;
-    localStorage.setItem(WEEKLY_KEY, JSON.stringify({weekKey, text:fb}));
+
+    if(!isPremium){
+      state.count++;
+      saveRegenState(state);
+    }
+  }
+
+  card.style.display = 'block';
+  textEl.textContent = 'Réflexion en cours…';
+  regenBtn.disabled = true;
+
+  const checkins = loadCheckins();
+  const last = checkins[checkins.length - 1] || { energie:5, sommeil:5, charge:5, humeur:5 };
+
+  try{
+    const response = await fetch(GROQ_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'micro_action', checkin: last }),
+    });
+    const data = await response.json();
+    textEl.textContent = data.text || "Prends 2 minutes pour poser ton téléphone et respirer profondément trois fois.";
+    document.getElementById('actionDuration').textContent = data.duration || '2 min';
+  } catch(err){
+    textEl.textContent = "Prends 2 minutes pour poser ton téléphone et respirer profondément trois fois.";
+  } finally {
+    regenBtn.disabled = false;
   }
 }
-function localWeeklyFallback(stats){
-  const bits = [];
-  if(stats.energie < 4) bits.push("ton énergie moyenne était basse cette semaine");
-  if(stats.sommeil < 4) bits.push("le sommeil a manqué");
-  if(stats.charge > 6.5) bits.push("la charge mentale est restée élevée");
-  if(stats.humeur >= 6.5 && stats.energie >= 6) bits.push("la semaine a globalement été plutôt légère");
-  if(bits.length === 0) bits.push("les indicateurs sont restés stables, dans une zone raisonnable");
-  return `Sur les 7 derniers jours : ${bits.join(", ")}. Énergie ${stats.energie}/10, sommeil ${stats.sommeil}/10, humeur ${stats.humeur}/10. Continue à noter chaque jour, la tendance devient plus lisible avec le temps.`;
+
+/* ---------- WEEKLY BILAN (Premium) ---------- */
+async function maybeRenderWeekly(){
+  const weeklyCard = document.getElementById('weeklyCard');
+  const weeklyText = document.getElementById('weeklyText');
+  const checkins = loadCheckins();
+
+  if(checkins.length < 3){
+    weeklyCard.style.display = 'none';
+    return;
+  }
+  weeklyCard.style.display = 'block';
+
+  const isPremium = window.RespiroPaywall ? await window.RespiroPaywall.isPremium() : false;
+
+  if(!isPremium){
+    weeklyText.innerHTML = `
+      <div class="weekly-locked">
+        Ton bilan hebdomadaire personnalisé (analyse IA de tes 7 derniers jours) fait partie de Respiro Premium.
+        <div><button onclick="window.RespiroPaywall && window.RespiroPaywall.open()">Débloquer mon bilan</button></div>
+      </div>`;
+    return;
+  }
+
+  weeklyText.textContent = 'Analyse de ta semaine en cours…';
+
+  try{
+    const last7 = checkins.slice(-7);
+    const response = await fetch(GROQ_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'weekly_bilan', checkins: last7 }),
+    });
+    const data = await response.json();
+    weeklyText.textContent = data.text || "Cette semaine montre une énergie stable, avec quelques signaux de fatigue en fin de semaine.";
+  } catch(err){
+    weeklyText.textContent = "Impossible de générer le bilan pour le moment. Réessaie plus tard.";
+  }
+}
+
+/* ---------- VICTOIRES ---------- */
+function renderVictories(){
+  const list = document.getElementById('victoryList');
+  const victories = loadVictories();
+
+  if(victories.length === 0){
+    list.innerHTML = '<div class="empty-note">Rien pour l\'instant — note ta première petite victoire du jour.</div>';
+    return;
+  }
+
+  list.innerHTML = victories.slice().reverse().map(v => `
+    <li>
+      <span>${v.text}</span>
+      <span class="vdate">${v.date.slice(5)}</span>
+    </li>
+  `).join('');
+}
+
+function addVictory(){
+  const input = document.getElementById('victoryInput');
+  const text = input.value.trim();
+  if(!text) return;
+
+  const victories = loadVictories();
+  victories.push({ date: todayStr(), text });
+  saveVictories(victories);
+  input.value = '';
+  renderVictories();
+  showToast('Petite victoire notée 🌿');
+}
+
+/* ---------- CONTACT DE CONFIANCE ---------- */
+function renderContact(){
+  const zone = document.getElementById('contactZone');
+  const contact = loadContact();
+
+  if(!contact){
+    zone.innerHTML = `
+      <div class="contact-form">
+        <input type="text" id="contactName" placeholder="Nom du contact" maxlength="60">
+        <input type="tel" id="contactPhone" placeholder="Numéro de téléphone">
+        <button class="contact-save" onclick="saveContactForm()">Enregistrer ce contact</button>
+      </div>`;
+    return;
+  }
+
+  zone.innerHTML = `
+    <div class="contact-summary">
+      <div>
+        <div class="cname">${contact.name}</div>
+        <div class="cphone">${contact.phone}</div>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <a href="tel:${contact.phone}" style="color:var(--sage); font-size:13px; text-decoration:none;">Appeler</a>
+        <button class="contact-edit" onclick="editContact()">modifier</button>
+      </div>
+    </div>`;
+}
+
+function saveContactForm(){
+  const name = document.getElementById('contactName').value.trim();
+  const phone = document.getElementById('contactPhone').value.trim();
+  if(!name || !phone){
+    showToast('Ajoute un nom et un numéro.');
+    return;
+  }
+  saveContact({ name, phone });
+  renderContact();
+  showToast('Contact enregistré.');
+}
+
+function editContact(){
+  localStorage.removeItem(CONTACT_KEY);
+  renderContact();
 }
 
 /* ---------- EXPORT ---------- */
-function downloadFile(filename, content, mime){
-  const blob = new Blob([content], {type: mime});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
 function exportJSON(){
-  const payload = {
+  const data = {
     checkins: loadCheckins(),
     victories: loadVictories(),
-    exportedAt: new Date().toISOString()
+    exportedAt: new Date().toISOString(),
   };
-  downloadFile(`respiro-sauvegarde-${todayStr()}.json`, JSON.stringify(payload, null, 2), "application/json");
-  showToast("Sauvegarde téléchargée");
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `respiro-sauvegarde-${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Sauvegarde téléchargée.');
 }
+
 function exportSummary(){
-  const data = loadCheckins().slice(-30);
-  if(data.length === 0){ showToast("Pas encore de données à exporter"); return; }
-  let txt = `Respiro — résumé des ${data.length} derniers jours\nGénéré le ${todayStr()}\n\n`;
-  txt += `Date       | Énergie | Sommeil | Charge | Humeur\n`;
-  txt += `-----------|---------|---------|--------|-------\n`;
-  data.forEach(d=>{
-    txt += `${d.date} |    ${d.energie}    |    ${d.sommeil}    |   ${d.charge}    |   ${d.humeur}\n`;
-  });
-  txt += `\nCeci est un auto-suivi, pas un diagnostic. Respiro ne remplace pas un avis médical.`;
-  downloadFile(`respiro-resume-${todayStr()}.txt`, txt, "text/plain");
-  showToast("Résumé téléchargé");
+  const checkins = loadCheckins();
+  if(checkins.length === 0){
+    showToast('Pas encore de données à résumer.');
+    return;
+  }
+
+  const last14 = checkins.slice(-14);
+  const avg = (key) => (last14.reduce((s,c) => s + c[key], 0) / last14.length).toFixed(1);
+
+  const lines = [
+    `Résumé Respiro — généré le ${todayStr()}`,
+    `Période : ${last14[0].date} au ${last14[last14.length-1].date}`,
+    ``,
+    `Moyennes sur la période :`,
+    `- Énergie : ${avg('energie')}/10`,
+    `- Qualité du sommeil : ${avg('sommeil')}/10`,
+    `- Charge mentale : ${avg('charge')}/10`,
+    `- Humeur générale : ${avg('humeur')}/10`,
+    ``,
+    `Détail des check-ins :`,
+    ...last14.map(c => `${c.date} — énergie ${c.energie}, sommeil ${c.sommeil}, charge ${c.charge}, humeur ${c.humeur}`),
+    ``,
+    `Ce document est généré par l'application Respiro à titre indicatif. Il ne constitue pas un diagnostic médical.`,
+  ];
+
+  const blob = new Blob([lines.join('\\n')], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `respiro-resume-${todayStr()}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Résumé téléchargé — à partager avec un professionnel si besoin.');
 }
 
 /* ---------- INIT ---------- */
-(function init(){
-  const data = loadCheckins();
-  refreshCheckinUI();
-  renderTrend(data);
+window.addEventListener('DOMContentLoaded', () => {
+  renderTrend();
+  updateStreak();
   renderVictories();
   renderContact();
-  maybeRenderWeekly(data);
-  const existing = alreadyCheckedToday();
-  if(existing){
-    checkCrisis(existing, data);
-    generateAction(false, existing);
+  maybeRenderWeekly();
+
+  const checkins = loadCheckins();
+  const already = checkins.find(c => c.date === todayStr());
+  if(already){
+    document.getElementById('checkinBtn').disabled = true;
+    document.getElementById('checkinBtn').textContent = 'Check-in déjà fait aujourd\'hui ✓';
+    generateAction(false);
   }
-  if('serviceWorker' in navigator){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  }
-})();
+
+  if(window.RespiroPaywall) window.RespiroPaywall.init();
+});
 </script>
+
+<script src="/public/paywall.js"></script>
 </body>
 </html>
