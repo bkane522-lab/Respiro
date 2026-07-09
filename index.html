@@ -68,15 +68,15 @@
   .topbar-tab h1{font-size:22px; font-weight:700; margin:0 0 2px; font-family:'Newsreader', serif; font-style:italic;}
 
   /* HERO / ORB (home) */
-  .hero{ text-align:center; padding:10px 0 4px; }
-  h1.tagline{font-family:'Newsreader', serif; font-style:italic; font-weight:400; font-size:26px; line-height:1.25; margin:6px 0 6px; color:var(--ink);}
-  p.sub{color:var(--ink-dim); font-size:13.5px; margin:0 0 20px; text-align:center;}
+  .hero{ text-align:center; padding:2px 0 0; }
+  h1.tagline{font-family:'Newsreader', serif; font-style:italic; font-weight:400; font-size:21px; line-height:1.2; margin:4px 0 4px; color:var(--ink);}
+  p.sub{color:var(--ink-dim); font-size:13px; margin:0 0 10px; text-align:center;}
 
-  .orb-zone{position:relative; width:220px; height:220px; margin:12px auto;}
+  .orb-zone{position:relative; width:172px; height:172px; margin:4px auto;}
   .ring{ position:absolute; inset:0; border-radius:50%; border:1px solid var(--line); }
-  .ring.r2{inset:-20px; opacity:0.6;}
+  .ring.r2{inset:-16px; opacity:0.6;}
   .orb{
-    position:absolute; left:50%; top:50%; width:150px; height:150px;
+    position:absolute; left:50%; top:50%; width:118px; height:118px;
     transform:translate(-50%,-50%) scale(1);
     border-radius:50%;
     background: radial-gradient(circle at 38% 32%, var(--peach), var(--coral) 70%);
@@ -106,10 +106,10 @@
   .breath-phase{font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--coral); margin-top:8px; min-height:16px; text-align:center;}
 
   /* QUICK ACTIONS */
-  .quick-row{display:flex; gap:10px; margin:18px 0;}
+  .quick-row{display:flex; gap:8px; margin:10px 0;}
   .quick-btn{
-    flex:1; background:var(--panel); border:1px solid var(--line); border-radius:18px;
-    padding:14px 8px; text-align:center; cursor:pointer; color:var(--ink);
+    flex:1; background:var(--panel); border:1px solid var(--line); border-radius:16px;
+    padding:10px 6px; text-align:center; cursor:pointer; color:var(--ink);
   }
   .quick-btn.primary{background:linear-gradient(135deg, var(--coral), #e9714f); border:none; color:#2a1208;}
   .quick-btn .qi{font-size:20px; display:block; margin-bottom:6px;}
@@ -139,10 +139,10 @@
     -webkit-backdrop-filter: blur(14px);
     border:1px solid var(--line);
     border-radius: var(--radius);
-    padding:18px;
-    margin-bottom:16px;
+    padding:14px 16px;
+    margin-bottom:12px;
   }
-  .card h2{font-size:15.5px; font-weight:700; margin:0 0 12px; color:var(--ink); display:flex; align-items:center; gap:8px;}
+  .card h2{font-size:15px; font-weight:700; margin:0 0 10px; color:var(--ink); display:flex; align-items:center; gap:8px;}
   .card .card-icon{font-size:16px;}
   .eyebrow{display:block; font-family:'JetBrains Mono', monospace; font-size:10px; letter-spacing:1.3px; text-transform:uppercase; color:var(--coral); margin-bottom:3px; font-weight:400;}
 
@@ -401,7 +401,9 @@
       </div>
     </div>
     <div class="breath-phase" id="breathPhase"></div>
-    <div class="breath-hint" id="breathHint">touche l'orbe pour une respiration guidée</div>
+    <div class="breath-hint" id="breathHint">touche l'orbe pour une respiration guidée
+      <span id="soundToggle" onclick="toggleSound(event)" style="cursor:pointer; margin-left:6px;">🔊</span>
+    </div>
 
     <div class="quick-row">
       <div class="quick-btn primary" onclick="startBreathing()">
@@ -596,15 +598,15 @@
       </div>
     </div>
 
-    <div class="emergency-card">
+    <a class="emergency-card" href="tel:15" style="text-decoration:none; color:inherit; display:block; cursor:pointer;">
       <div class="rc-top" style="margin-bottom:0;">
         <div class="res-icon red">🚨</div>
         <div>
           <div class="rc-title">En cas d'urgence vitale</div>
-          <p>Appelle le 15 immédiatement. Ne reste pas seul(e).</p>
+          <p>Appuie ici pour appeler le 15 immédiatement. Ne reste pas seul(e).</p>
         </div>
       </div>
-    </div>
+    </a>
   </section>
 
   <!-- ==================== MOI ==================== -->
@@ -614,7 +616,7 @@
     <div class="premium-card" id="premiumCard">
       <div class="premium-status">
         <div class="ps-text" id="premiumText">Chargement du statut…</div>
-        <button id="premiumBtn" onclick="window.RespiroPaywall && window.RespiroPaywall.open()">Passer Premium</button>
+        <button id="premiumBtn" onclick="handlePremiumClick()">Passer Premium</button>
       </div>
     </div>
 
@@ -723,6 +725,47 @@ const orb = document.getElementById('orb');
 const breathPhase = document.getElementById('breathPhase');
 const breathHint = document.getElementById('breathHint');
 let breathing = false;
+let soundMuted = localStorage.getItem('respiro_sound_muted') === 'true';
+
+function updateSoundIcon(){
+  const el = document.getElementById('soundToggle');
+  if(el) el.textContent = soundMuted ? '🔇' : '🔊';
+}
+function toggleSound(e){
+  if(e) e.stopPropagation();
+  soundMuted = !soundMuted;
+  localStorage.setItem('respiro_sound_muted', soundMuted);
+  updateSoundIcon();
+}
+
+/* Audio doux via Web Audio API — aucun fichier son requis */
+let audioCtx = null;
+function ensureAudio(){
+  if(soundMuted) return null;
+  if(!audioCtx){
+    try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e){ return null; }
+  }
+  if(audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playTone(freqStart, freqEnd, durationMs){
+  const ctx = ensureAudio();
+  if(!ctx) return;
+  const t0 = ctx.currentTime;
+  const dur = durationMs / 1000;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freqStart, t0);
+  osc.frequency.linearRampToValueAtTime(freqEnd, t0 + dur);
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.12, t0 + Math.min(0.3, dur/3));
+  gain.gain.linearRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain); gain.connect(ctx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+}
 
 function startBreathing(){
   if(currentTab !== 'home'){ goToTab('home'); }
@@ -731,32 +774,51 @@ function startBreathing(){
   orb.classList.add('active');
   breathHint.style.display = 'none';
   const phases = [
-    {label:"Inspire…", dur:4000},
-    {label:"Retiens…", dur:4000},
-    {label:"Expire…", dur:4000},
-    {label:"Retiens…", dur:4000},
+    {label:"Inspire", dur:4000, tone:[220,440]},
+    {label:"Retiens", dur:4000, tone:[440,440]},
+    {label:"Expire", dur:4000, tone:[440,220]},
+    {label:"Retiens", dur:4000, tone:[220,220]},
   ];
   let cycle = 0;
   const totalCycles = 4;
+  let countdownTimer = null;
+
   function runPhase(i){
     if(cycle >= totalCycles){
       breathing = false;
       orb.classList.remove('active');
       breathPhase.textContent = '';
       breathHint.style.display = 'block';
-      breathHint.textContent = "bien joué — touche encore l'orbe quand tu veux";
+      breathHint.textContent = "bien joué — touche encore l'orbe quand tu veux ";
+      const soundSpan = document.createElement('span');
+      soundSpan.id = 'soundToggle';
+      soundSpan.style.cursor = 'pointer';
+      soundSpan.style.marginLeft = '6px';
+      soundSpan.onclick = toggleSound;
+      soundSpan.textContent = soundMuted ? '🔇' : '🔊';
+      breathHint.appendChild(soundSpan);
       return;
     }
-    breathPhase.textContent = phases[i].label;
+    const phase = phases[i];
+    playTone(phase.tone[0], phase.tone[1], phase.dur);
+    let secondsLeft = phase.dur / 1000;
+    breathPhase.textContent = `${phase.label}… ${secondsLeft}`;
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      secondsLeft--;
+      if(secondsLeft > 0){ breathPhase.textContent = `${phase.label}… ${secondsLeft}`; }
+    }, 1000);
     setTimeout(() => {
+      clearInterval(countdownTimer);
       const next = (i + 1) % phases.length;
       if(next === 0) cycle++;
       runPhase(next);
-    }, phases[i].dur);
+    }, phase.dur);
   }
   runPhase(0);
 }
 orb.addEventListener('click', startBreathing);
+updateSoundIcon();
 
 /* ---------- CRISIS BANNER ---------- */
 function dismissCrisis(){
@@ -1086,6 +1148,16 @@ function handleResContact(){ /* onclick réassigné dynamiquement par renderResC
 /* ---------- TECHNIQUES D'ANCRAGE (Ressources) ---------- */
 function toggleAncrage(){
   document.getElementById('ancrageList').classList.toggle('open');
+}
+
+/* ---------- PREMIUM BUTTON ---------- */
+function handlePremiumClick(){
+  if(window.RespiroPaywall && typeof window.RespiroPaywall.open === 'function'){
+    window.RespiroPaywall.open();
+  } else {
+    console.error('RespiroPaywall introuvable — vérifie que /assets/paywall.js est bien déployé et se charge sans erreur (voir la console du navigateur).');
+    showToast("Le module Premium ne s'est pas chargé. Réessaie dans un instant.");
+  }
 }
 
 /* ---------- PREMIUM STATUS (Moi) ---------- */
